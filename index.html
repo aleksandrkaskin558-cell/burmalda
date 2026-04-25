@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Space Shop — Mini App</title>
+
+    <!-- Pico.css — лёгкий CSS-фреймворк, стилизует стандартные HTML-теги -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css" />
+
+    <!-- Telegram Web App SDK — «мост» между Mini App и Telegram -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+    <!--
+        Связываем CSS-переменные Telegram с темой Pico.css.
+        Это позволяет приложению «мимикрировать» под настройки мессенджера:
+        когда пользователь переключает тёмную/светлую тему в Telegram,
+        наш Mini App автоматически меняет свой внешний вид.
+    -->
+    <style>
+        :root {
+            /* Фон страницы берётся из темы Telegram */
+            --pico-background-color: var(--tg-theme-bg-color, #ffffff);
+            /* Цвет текста подстраивается под тему */
+            --pico-color: var(--tg-theme-text-color, #000000);
+            /* Кнопки окрашиваются в системный цвет Telegram */
+            --pico-primary: var(--tg-theme-button-color, #3390ec);
+            --pico-primary-hover: var(--tg-theme-button-color, #3390ec);
+        }
+
+        body {
+            background-color: var(--tg-theme-bg-color, #ffffff);
+            color: var(--tg-theme-text-color, #000000);
+        }
+
+        /* Плейсхолдер изображения товара */
+        .product-image {
+            width: 100%;
+            max-width: 320px;
+            height: 200px;
+            background: var(--tg-theme-secondary-bg-color, #f0f0f0);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1rem;
+            font-size: 3rem;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ═══════════ Навигация ═══════════ -->
+    <nav>
+        <ul>
+            <li><strong>🚀 Space Shop</strong></li>
+        </ul>
+        <ul>
+            <!-- Приветствие: имя пользователя подставляется через JS -->
+            <li id="user-greeting">Загрузка...</li>
+        </ul>
+    </nav>
+
+    <!-- ═══════════ Основной контент ═══════════ -->
+    <main class="container">
+        <header>
+            <h1>Привет, это мой первый Mini App!</h1>
+            <p>Магазин космического мерча — всё лучшее из галактики.</p>
+        </header>
+
+        <!-- Карточка товара -->
+        <article>
+            <!-- Плейсхолдер изображения -->
+            <div class="product-image">🌕</div>
+
+            <header>
+                <h2>Лунный камень</h2>
+            </header>
+
+            <p>
+                Настоящий фрагмент лунного грунта, доставленный миссией «Артемида».
+                Идеальный подарок для любителей космоса.
+            </p>
+
+            <footer>
+                <p><strong>Цена: 9 999 ₽</strong></p>
+                <!-- Кнопка «В корзину» вызывает sendOrder с названием товара -->
+                <button onclick="addToCart('Лунный камень')">В корзину</button>
+            </footer>
+        </article>
+    </main>
+
+    <!-- ═══════════ Подвал ═══════════ -->
+    <footer class="container">
+        <small>Space Shop © 2024 — Telegram Mini App</small>
+    </footer>
+
+    <!-- ═══════════ JavaScript: логика приложения ═══════════ -->
+    <script>
+        // --- Инициализация Telegram SDK ---
+        const tg = window.Telegram.WebApp;
+
+        // ready() — сообщаем Telegram, что приложение загрузилось
+        tg.ready();
+        // expand() — раскрываем Mini App на весь экран
+        tg.expand();
+
+        // --- Приветствие пользователя ---
+        // Извлекаем имя из данных Telegram и вставляем в навигацию
+        const user = tg.initDataUnsafe?.user;
+        const greeting = document.getElementById("user-greeting");
+        if (user) {
+            greeting.textContent = `Привет, ${user.first_name}!`;
+        } else {
+            greeting.textContent = "Привет, гость!";
+        }
+
+        // --- MainButton: нативная кнопка Telegram внизу экрана ---
+        // Изначально скрыта; появляется при добавлении товара в корзину
+        tg.MainButton.setText("Оформить заказ");
+        tg.MainButton.color = tg.themeParams.button_color || "#3390ec";
+
+        // При нажатии на MainButton отправляем заказ на сервер
+        tg.MainButton.onClick(function () {
+            sendOrder("Лунный камень");
+        });
+
+        /**
+         * addToCart — добавляет товар в корзину.
+         * «Это делает телефон пользователя живым» — лёгкая вибрация
+         * подтверждает действие на физическом уровне (HapticFeedback).
+         */
+        function addToCart(itemName) {
+            // Виброотклик при добавлении в корзину
+            tg.HapticFeedback.impactOccurred("medium");
+
+            // Показываем нативную кнопку Telegram
+            tg.MainButton.show();
+
+            tg.showAlert("Товар «" + itemName + "» добавлен в корзину!");
+        }
+
+        /**
+         * sendOrder — отправляет заказ на сервер (fetch POST).
+         * Метафора: «Официант (API) несёт заказ на кухню (Backend)».
+         */
+        async function sendOrder(itemName) {
+            try {
+                const response = await fetch("/api/order", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        // Передаём initData для проверки подписи на бэкенде
+                        "X-Telegram-Init-Data": tg.initData,
+                    },
+                    body: JSON.stringify({
+                        item_name: itemName,
+                        amount: 1,
+                    }),
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    // Виброотклик при успешном заказе
+                    tg.HapticFeedback.impactOccurred("medium");
+                    tg.showAlert(result.message);
+                } else if (response.status === 422) {
+                    tg.showAlert("Ошибка валидации!");
+                } else {
+                    tg.showAlert("Ошибка: " + (result.detail || "Неизвестная ошибка"));
+                }
+            } catch (error) {
+                tg.showAlert("Ошибка сети: " + error.message);
+            }
+        }
+    </script>
+
+</body>
+</html>
